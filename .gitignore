@@ -1,0 +1,16 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# Docker
+.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db
