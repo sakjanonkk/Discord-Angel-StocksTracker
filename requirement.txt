@@ -3,3 +3,5 @@ yfinance
 python-dotenv
 requests
 feedparser
+mplfinance
+pandas

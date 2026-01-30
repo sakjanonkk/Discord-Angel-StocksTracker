@@ -6,7 +6,9 @@ import urllib.parse
 import os
 from datetime import datetime
 from dotenv import load_dotenv
-
+import pandas as pd
+import io
+import mplfinance as mpf
 # ---------------------------------------------------------
 # ⚙️ CONFIG & SETUP
 # ---------------------------------------------------------
@@ -289,6 +291,65 @@ async def guide(ctx):
     embed.set_footer(text="Tip: Check ^TNX before buying Tech stocks!")
     await ctx.send(embed=embed)
     
+
+@bot.command()
+async def chart(ctx, symbol: str, period: str = "1mo"):
+    """
+    สร้างกราฟแท่งเทียน (!chart NVDA [1mo/3mo/6mo/1y])
+    """
+    symbol = symbol.upper()
+    
+    # แปลงชื่อย่อให้ yfinance เข้าใจ (เช่น Gold, Crypto)
+    ticker_map = {
+        "GOLD": "GC=F",
+        "OIL": "CL=F",
+        "BTC": "BTC-USD",
+        "ETH": "ETH-USD",
+        "SET": "^SET.BK"
+    }
+    y_symbol = ticker_map.get(symbol, symbol) # ถ้าไม่เจอใน map ก็ใช้ชื่อเดิม
+
+    status_msg = await ctx.send(f"📊 กำลังวาดกราฟ **{y_symbol}** ({period})...")
+
+    try:
+        # 1. ดึงข้อมูลย้อนหลัง
+        data = yf.Ticker(y_symbol).history(period=period)
+        
+        if data.empty:
+            await status_msg.edit(content=f"❌ ไม่พบข้อมูลกราฟของ {symbol}")
+            return
+
+        # 2. ตั้งค่าสไตล์กราฟให้ดู Pro (สีเข้ม เหมาะกับ Discord)
+        mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit', volume='in')
+        s  = mpf.make_mpf_style(marketcolors=mc, base_mpf_style='nightclouds', gridstyle=':')
+
+        # 3. วาดกราฟลงใน Memory (ไม่ต้องเซฟไฟล์ลงเครื่อง)
+        buf = io.BytesIO()
+        mpf.plot(
+            data,
+            type='candle',
+            volume=True,
+            style=s,
+            title=f"\n{symbol} Price Chart ({period})",
+            savefig=dict(fname=buf, dpi=100, bbox_inches='tight')
+        )
+        buf.seek(0)
+
+        # 4. ส่งรูปเข้า Discord
+        file = discord.File(buf, filename="chart.png")
+        embed = discord.Embed(
+            title=f"📈 Technical Chart: {symbol}",
+            color=discord.Color.dark_grey()
+        )
+        embed.set_image(url="attachment://chart.png")
+        embed.set_footer(text=f"Timeframe: {period} • Powered by mplfinance")
+
+        await status_msg.delete()
+        await ctx.send(file=file, embed=embed)
+
+    except Exception as e:
+        await status_msg.edit(content=f"❌ Error: {e}")
+
 # Run Bot
 if TOKEN:
     bot.run(TOKEN)
